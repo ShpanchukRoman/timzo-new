@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { authErrorMessage } from '@/lib/auth-errors.mjs';
 import { useRouter } from 'next/navigation';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { signup, login } from '@netlify/identity';
+import IdentityOptions, { useIdentitySettings } from '@/components/IdentityOptions';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { settings, settingsError } = useIdentitySettings();
+  const [notice, setNotice] = useState('');
   const [fullName, setFullName] = useState('');
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,34 +22,15 @@ export default function RegisterPage() {
     setError('');
     setIsSubmitting(true);
 
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fullName,
-        orgName,
-        email,
-        password
-      })
-    });
-
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      setError(result?.error || 'Помилка реєстрації.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const supabase = createSupabaseBrowserClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    setIsSubmitting(false);
-
-    if (authError) {
-      setError(authError.message);
+    try {
+    const registered = await signup(email.trim(), password, { full_name: fullName.trim(), org_name: orgName.trim() });
+    if (!registered.confirmedAt) { setNotice('Перевірте вашу пошту й підтвердьте email за посиланням у листі. Перевірте також папку «Спам». Після підтвердження відкриється ваш робочий простір.'); return; }
+    // Signup creates the account but does not necessarily create a session.
+    setNotice('Акаунт створено. Якщо автоматичний вхід не завершиться, перейдіть на сторінку входу.');
+    try {
+      await login(email.trim(), password);
+    } catch (error) {
+      setError(authErrorMessage(error));
       return;
     }
 
@@ -54,11 +39,20 @@ export default function RegisterPage() {
     } else {
       router.push('/schedule');
     }
+    } catch (error) {
+      setError(authErrorMessage(error, 'signup'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div>
-      <h1>Реєстрація</h1>
+      <h1>Ваша нова команда</h1>
+      <p className="auth-description">Створіть новий обліковий запис. Облікові записи та графіки попереднього сервера автоматично не перенесені.</p>
+      {settingsError && <p className="auth-error" role="alert">{settingsError}</p>}
+      {settings?.disableSignup && <p className="auth-notice">Реєстрація доступна лише за запрошенням.</p>}
+      {notice && <p className="auth-notice" role="status">{notice}</p>}
       <form onSubmit={handleSubmit} className="auth-form">
         <label className="auth-field">
           <span>Ім’я та прізвище</span>
@@ -99,16 +93,18 @@ export default function RegisterPage() {
             type="password"
             name="password"
             autoComplete="new-password"
+            minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
         </label>
-        {error ? <div className="auth-error">{error}</div> : null}
-        <button type="submit" className="primary-btn" disabled={isSubmitting}>
+        {error ? <div className="auth-error" role="alert">{error}</div> : null}
+        <button type="submit" className="primary-btn" disabled={isSubmitting || !settings || settingsError || settings.disableSignup || settings.providers?.email === false || Boolean(notice)}>
           {isSubmitting ? 'Створюємо...' : 'Створити акаунт'}
         </button>
       </form>
+      <IdentityOptions settings={settings} />
       <p className="auth-hint">
         Є акаунт? <a href="/login">Увійти</a>
       </p>
