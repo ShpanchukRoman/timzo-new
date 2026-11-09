@@ -34,7 +34,7 @@ export default function InstallApp() {
   return <>
     {offline && <p className="offline-notice" role="status">Немає з’єднання. Для завантаження та збереження графіка потрібен інтернет.</p>}
     {!standalone && <aside className="install-panel" aria-label="Встановлення застосунку">
-      <p><strong>timzo завжди під рукою.</strong> Додайте застосунок на головний екран.</p>
+      <p>Встановіть timzo на головний екран.</p>
       {prompt ? <button type="button" className="primary-btn" onClick={install}>Встановити timzo</button> : <details><summary>Як встановити на iPhone</summary><p>Відкрийте цей сайт у Safari → натисніть «Поширити» → «На початковий екран» → «Додати». Застосунок відкриватиметься в окремому вікні. Для роботи з графіком потрібен інтернет.</p></details>}
     </aside>}
   </>;

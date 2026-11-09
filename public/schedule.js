@@ -32,6 +32,7 @@ const MONTH_NAMES = ['січня', 'лютого', 'березня', 'квітн
 async function initApp() {
     setCurrentWeek();
     setupEventListeners();
+    setupMobileSchedule();
     setupWeekDateFallback();
     applyCurrentWeekSelection();
     syncShareWeekInput();
@@ -270,6 +271,7 @@ function setLimitsData(limits) {
         input.value = limits[index] || input.value;
     });
     updateWeeklyLimitTotal();
+    selectMobileDay(mobileDayIndex);
 }
 
 function clearAllEmployees() {
@@ -957,6 +959,78 @@ function getWeekNumber(d) {
     return [d.getUTCFullYear(), weekNo];
 }
 
+let mobileDayIndex = (new Date().getDay() + 6) % 7;
+function selectMobileDay(index) {
+    mobileDayIndex = Math.max(0, Math.min(6, index));
+    const section = document.getElementById('schedule-section');
+    if (!section) return;
+    section.querySelectorAll('.employee-row .day-cell').forEach(cell => {
+        cell.classList.toggle('mobile-selected-day', Number(cell.dataset.dayIndex) === mobileDayIndex);
+    });
+    section.querySelectorAll('.limits-row .day-cell, .used-hours-row .day-cell').forEach(cell => {
+        cell.classList.toggle('mobile-selected-day', Number(cell.dataset.day) === mobileDayIndex);
+    });
+    const tabs = document.querySelectorAll('#mobile-day-tabs button');
+    tabs.forEach((tab, i) => {
+        tab.setAttribute('aria-selected', String(i === mobileDayIndex));
+        tab.tabIndex = i === mobileDayIndex ? 0 : -1;
+        const date = currentWeekDates[i];
+        tab.querySelector('span').textContent = date ? date.getDate() : '';
+        tab.setAttribute('aria-label', date ? date.toLocaleDateString('uk-UA', {weekday:'long', day:'numeric', month:'long'}) : DAY_NAMES[i]);
+    });
+    const date = currentWeekDates[mobileDayIndex];
+    if (date && matchMedia('(max-width: 767px)').matches) {
+        setTimelineSelectedDate(date);
+        updateTimeline(mobileDayIndex);
+    }
+    document.getElementById('mobile-day-title').textContent = date ? date.toLocaleDateString('uk-UA', {weekday:'long', day:'numeric', month:'long'}) : DAY_NAMES[mobileDayIndex];
+    document.getElementById('mobile-day-prev').disabled = mobileDayIndex === 0;
+    document.getElementById('mobile-day-next').disabled = mobileDayIndex === 6;
+}
+function setupMobileSchedule() {
+    const tabs = document.getElementById('mobile-day-tabs');
+    if (!tabs) return;
+    tabs.addEventListener('click', event => {
+        const button = event.target.closest('[data-mobile-day]');
+        if (button) selectMobileDay(Number(button.dataset.mobileDay));
+    });
+    tabs.addEventListener('keydown', event => {
+        let next = mobileDayIndex;
+        if (event.key === 'ArrowRight') next++;
+        else if (event.key === 'ArrowLeft') next--;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = 6;
+        else return;
+        event.preventDefault();
+        selectMobileDay(next);
+        tabs.children[mobileDayIndex].focus();
+    });
+    document.getElementById('mobile-day-prev').onclick = () => selectMobileDay(mobileDayIndex - 1);
+    document.getElementById('mobile-day-next').onclick = () => selectMobileDay(mobileDayIndex + 1);
+    const region = document.querySelector('.schedule-scroll');
+    let start = null;
+    region.addEventListener('touchstart', event => {
+        start = !event.target.closest('input,button,select,a') && event.touches.length === 1 ? {x:event.touches[0].clientX, y:event.touches[0].clientY} : null;
+    }, {passive:true});
+    region.addEventListener('touchend', event => {
+        if (!start || !event.changedTouches.length) return;
+        const dx = event.changedTouches[0].clientX - start.x;
+        const dy = event.changedTouches[0].clientY - start.y;
+        start = null;
+        if (matchMedia('(max-width: 767px)').matches && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) selectMobileDay(mobileDayIndex + (dx < 0 ? 1 : -1));
+    }, {passive:true});
+    region.addEventListener('touchcancel', () => { start = null; }, {passive:true});
+    selectMobileDay(mobileDayIndex);
+}
+function labelMobileStats(row) {
+    if (!row.matches('.employee-stats-row, .employee-plan-row')) return;
+    const labels = row.classList.contains('employee-stats-row')
+        ? ['Працівник','Посада','Робочі / вихідні дні','Години','Середні години за день']
+        : row.classList.contains('compact') ? ['Працівник','Посада','Усього годин']
+        : ['Працівник','Посада','Години за місяць','План годин','Виконання за місяць','За тиждень від плану','Залишок годин'];
+    Array.from(row.children).forEach((cell,i) => { cell.dataset.label = labels[i]; });
+}
+
 function updateWeekDates() {
     const weekInput = document.getElementById('week');
     const weekValue = ensureWeekValue();
@@ -1001,6 +1075,7 @@ function updateWeekDates() {
 
     updateTimeline();
     syncShareWeekInput();
+    selectMobileDay(mobileDayIndex);
 }
 
 
@@ -1696,6 +1771,7 @@ function calculateAllHours() {
     calculateEmployeeHours();
     calculateUsedHours();
     updateWeeklyLimitTotal();
+    selectMobileDay(mobileDayIndex);
 }
 
 function calculateEmployeeHours() {
@@ -1832,6 +1908,7 @@ function updateWeeklyStats() {
         rowEl.appendChild(hoursCell);
         rowEl.appendChild(averageCell);
 
+        labelMobileStats(rowEl);
         statsBody.appendChild(rowEl);
     });
 
@@ -2113,6 +2190,7 @@ function renderMonthStats() {
         rowEl.appendChild(weekPercentCell);
         rowEl.appendChild(remainingCell);
 
+        labelMobileStats(rowEl);
         body.appendChild(rowEl);
     });
 }
@@ -2171,6 +2249,7 @@ function renderAllStats() {
         rowEl.appendChild(nameCell);
         rowEl.appendChild(positionCell);
         rowEl.appendChild(hoursCell);
+        labelMobileStats(rowEl);
         body.appendChild(rowEl);
     });
 }
@@ -2688,6 +2767,7 @@ function updateTimeline(forceIndex = null, forceDate = null) {
 
         rowEl.appendChild(employeeInfo);
         rowEl.appendChild(track);
+        labelMobileStats(rowEl);
         body.appendChild(rowEl);
     });
 }
@@ -2924,7 +3004,7 @@ async function exportSchedule(format) {
     const holder = document.createElement('div');
     holder.style.cssText = 'position:absolute;left:-20000px;top:0;width:1400px;';
     holder.appendChild(clone);
-    clone.querySelectorAll('.controls, .add-employee, .table-hint').forEach(el => el.remove());
+    clone.querySelectorAll('.controls, .add-employee, .table-hint, .mobile-day-picker').forEach(el => el.remove());
     document.body.appendChild(holder);
     try {
         if (format === 'pdf') {

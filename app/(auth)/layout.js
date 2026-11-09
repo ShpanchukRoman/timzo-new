@@ -1,3 +1,3 @@
 export default function AuthLayout({ children }) {
-  return <div className="auth-layout"><aside className="auth-story"><a className="brand" href="/">timzo<span> / team planner</span></a><div><p className="eyebrow">ЧАС ДЛЯ ВАЖЛИВОГО</p><h2>Сильна команда.<br />Збалансований<br /><em>графік.</em></h2><p>Зміни, години та плани — в одному просторі.<br />На великому екрані й завжди під рукою.</p><div className="story-grid" aria-hidden="true">{['ПН','ВТ','СР','ЧТ','ПТ'].map((day, i) => <div key={day}><span>{day}</span><i style={{height: `${65 + i % 3 * 35}px`}} /><i style={{height: `${38 + i % 2 * 35}px`}} /></div>)}</div></div><small>Зробіть час своїм союзником.</small></aside><div className="auth-card">{children}</div></div>;
+  return <div className="auth-layout"><aside className="auth-story"><a className="brand" href="/">timzo</a><div><h2>Графік змін</h2></div></aside><div className="auth-card">{children}</div></div>;
 }

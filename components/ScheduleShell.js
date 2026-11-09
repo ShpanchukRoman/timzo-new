@@ -8,10 +8,10 @@ export default function ScheduleShell({ shareToken = '' }) {
   return (
     <>
       <main id="main-content">
-        <nav className="workspace-nav" aria-label="Розділи"><a href="#schedule-section">Графік змін</a><a href="#timeline-section">Таймлайн</a><a href="#stats-section">Аналітика</a><span>РОБОЧИЙ ПРОСТІР</span></nav>
+        <nav className="workspace-nav" aria-label="Розділи"><a href="#schedule-section">Графік змін</a><a href="#timeline-section">Таймлайн</a><a href="#stats-section">Аналітика</a></nav>
         <div id="share-banner" className="share-info-banner hidden"></div>
         <section className="container" id="schedule-section">
-          <div className="section-intro"><div><p className="eyebrow">КОМАНДА. ЧАС. БАЛАНС.</p><h1>Графік змін<span className="title-dot">.</span></h1><p className="section-description">Менше рутини. Більше часу для вашої команди.</p></div><span className="workspace-badge">Планування тижня</span></div>
+          <div className="section-intro"><h1>Графік змін</h1></div>
 
           <div className="controls">
             <div className="controls-row">
@@ -48,8 +48,11 @@ export default function ScheduleShell({ shareToken = '' }) {
             </div>
           </div>
 
-          <p className="table-hint" id="table-help">Усі 7 днів в одній таблиці · На телефоні гортайте вбік, імена залишаються видимими</p>
-          <div className="schedule-scroll" role="region" aria-label="Тижневий графік працівників" aria-describedby="table-help" tabIndex={0}>
+          <div className="mobile-day-picker" aria-label="День графіка">
+            <div className="mobile-day-heading"><button type="button" id="mobile-day-prev" aria-label="Попередній день">←</button><strong id="mobile-day-title" aria-live="polite"></strong><button type="button" id="mobile-day-next" aria-label="Наступний день">→</button></div>
+            <div id="mobile-day-tabs" role="tablist" aria-label="Дні тижня">{['Пн','Вт','Ср','Чт','Пт','Сб','Нд'].map((day, i) => <button type="button" key={day} role="tab" data-mobile-day={i} aria-controls="mobile-day-panel">{day}<span /></button>)}</div>
+          </div>
+          <div id="mobile-day-panel" className="schedule-scroll" role="region" aria-label="Тижневий графік працівників" tabIndex={0}>
           <div className="schedule-grid">
           <div className="limits-row">
             <div className="label-cell">Ліміт годин на день</div>
@@ -131,7 +134,7 @@ export default function ScheduleShell({ shareToken = '' }) {
         </section>
 
         <section className="stats-container" id="stats-section">
-          <p className="eyebrow">ПОВНА КАРТИНА</p><h2>Аналітика команди</h2>
+          <h2>Аналітика команди</h2>
 
           <div className="stats-tabs">
             <button className="stats-tab active" data-stats="week">За тиждень</button>
@@ -294,7 +297,7 @@ export default function ScheduleShell({ shareToken = '' }) {
           </div>
         </section>
 
-        <div className="made-by">timzo · Час працює на вашу команду</div>
+
       </main>
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" strategy="beforeInteractive" />
       <Script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js" strategy="beforeInteractive" />
