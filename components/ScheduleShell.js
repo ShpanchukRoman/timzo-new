@@ -7,16 +7,18 @@ export default function ScheduleShell({ shareToken = '' }) {
 
   return (
     <>
-      <main>
+      <main id="main-content">
+        <nav className="workspace-nav" aria-label="Розділи"><a href="#schedule-section">Графік змін</a><a href="#timeline-section">Таймлайн</a><a href="#stats-section">Аналітика</a><span>РОБОЧИЙ ПРОСТІР</span></nav>
         <div id="share-banner" className="share-info-banner hidden"></div>
-        <section className="container">
-          <h1>Планування графіку працівників</h1>
+        <section className="container" id="schedule-section">
+          <div className="section-intro"><div><p className="eyebrow">КОМАНДА. ЧАС. БАЛАНС.</p><h1>Графік змін<span className="title-dot">.</span></h1><p className="section-description">Менше рутини. Більше часу для вашої команди.</p></div><span className="workspace-badge">Планування тижня</span></div>
 
           <div className="controls">
             <div className="controls-row">
               <div className="week-selector">
                 <label htmlFor="week">Обрати тиждень:</label>
-                <input type="week" id="week" name="week" />
+                <input type="week" id="week" name="week" aria-label="Тиждень графіка" />
+                <input type="date" id="week-date-fallback" className="hidden" aria-label="Оберіть будь-який день потрібного тижня" />
               </div>
               <div className="controls-actions">
                 <button id="share-trigger" className="primary-btn" aria-expanded="false" aria-controls="share-inline-panel">
@@ -46,6 +48,9 @@ export default function ScheduleShell({ shareToken = '' }) {
             </div>
           </div>
 
+          <p className="table-hint" id="table-help">Усі 7 днів в одній таблиці · На телефоні гортайте вбік, імена залишаються видимими</p>
+          <div className="schedule-scroll" role="region" aria-label="Тижневий графік працівників" aria-describedby="table-help" tabIndex={0}>
+          <div className="schedule-grid">
           <div className="limits-row">
             <div className="label-cell">Ліміт годин на день</div>
             <div className="day-cell" data-day="0">
@@ -85,7 +90,7 @@ export default function ScheduleShell({ shareToken = '' }) {
           </div>
 
           <div id="employees-container">
-            <div className="empty-state">Дані будуть доступні після підключення сервера.</div>
+            <div className="empty-state">Завантаження вашого графіка…</div>
           </div>
 
           <div className="add-employee">
@@ -103,10 +108,11 @@ export default function ScheduleShell({ shareToken = '' }) {
             <div className="day-cell" data-day="6">0</div>
             <div className="total-cell">0</div>
           </div>
+          </div></div>
           <div id="limit-alerts" className="limit-alerts" aria-live="polite" aria-hidden="true"></div>
         </section>
 
-        <section className="timeline-container">
+        <section className="timeline-container" id="timeline-section">
           <div className="timeline-header">
             <div className="timeline-title">
               <h2>Таймлайн дня</h2>
@@ -124,8 +130,8 @@ export default function ScheduleShell({ shareToken = '' }) {
           <div className="timeline-body" id="timeline-body"></div>
         </section>
 
-        <section className="stats-container">
-          <h2>Статистика</h2>
+        <section className="stats-container" id="stats-section">
+          <p className="eyebrow">ПОВНА КАРТИНА</p><h2>Аналітика команди</h2>
 
           <div className="stats-tabs">
             <button className="stats-tab active" data-stats="week">За тиждень</button>
@@ -288,7 +294,7 @@ export default function ScheduleShell({ shareToken = '' }) {
           </div>
         </section>
 
-        <div className="made-by">зроблено у wave.ri - shpanchuk roman</div>
+        <div className="made-by">timzo · Час працює на вашу команду</div>
       </main>
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" strategy="beforeInteractive" />
       <Script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js" strategy="beforeInteractive" />

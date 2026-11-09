@@ -1,15 +1,12 @@
 function startApp() {
     initApp().catch((error) => {
-        console.error('Initialization error', error);
+        console.error('Initialization error');
+        showBannerMessage('Не вдалося завантажити графік. Перевірте з’єднання та оновіть сторінку.');
+        document.querySelectorAll('#add-employee-btn, #clear-schedule, .day-limit-input').forEach(el => { el.disabled = true; });
     });
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startApp);
-} else {
-    startApp();
-}
-
+let scheduleLoaded = false;
 let cachedDayTotals = new Array(7).fill(0);
 let cachedDayLimits = new Array(7).fill(0);
 let currentWeekDates = [];
@@ -35,6 +32,7 @@ const MONTH_NAMES = ['січня', 'лютого', 'березня', 'квітн
 async function initApp() {
     setCurrentWeek();
     setupEventListeners();
+    setupWeekDateFallback();
     applyCurrentWeekSelection();
     syncShareWeekInput();
     const shareApplied = await loadScheduleFromShareToken();
@@ -56,6 +54,7 @@ async function initApp() {
 
 // Збереження даних
 function saveData() {
+    if (!scheduleLoaded) return;
     if (isShareView) {
         return;
     }
@@ -74,6 +73,7 @@ function saveData() {
 }
 
 async function persistSchedule() {
+    if (!scheduleLoaded && !isShareView) throw new Error('Дочекайтеся завантаження графіка.');
     if (isShareView) {
         return;
     }
@@ -146,6 +146,9 @@ function generateClientId() {
 }
 
 async function loadSavedData() {
+    scheduleLoaded = false;
+    document.querySelectorAll('#add-employee-btn, #clear-schedule, #share-trigger, .day-limit-input').forEach(el => { el.disabled = true; });
+    if (pendingSaveTimer) { clearTimeout(pendingSaveTimer); pendingSaveTimer = null; }
     const weekInput = document.getElementById('week');
     const weekValue = weekInput ? weekInput.value : ensureWeekValue();
     if (!weekValue) {
@@ -157,13 +160,13 @@ async function loadSavedData() {
         credentials: 'include'
     });
     if (!response.ok) {
-        showBannerMessage('Не вдалося завантажити дані з сервера.');
-        addExampleEmployees();
-        return;
+        throw new Error('Schedule loading failed');
     }
 
     const data = await response.json();
     lastLoadedScheduleSnapshot = data;
+    scheduleLoaded = true;
+    document.querySelectorAll('#add-employee-btn, #clear-schedule, #share-trigger, .day-limit-input').forEach(el => { el.disabled = false; });
 
     if (weekInput && data.week) {
         weekInput.value = data.week;
@@ -293,6 +296,24 @@ function applyCurrentWeekSelection() {
     localStorage.setItem('workScheduleWeek', currentWeek);
 }
 
+function setupWeekDateFallback() {
+    const week = document.getElementById('week');
+    const date = document.getElementById('week-date-fallback');
+    if (!week || !date || week.type === 'week') return;
+    week.classList.add('hidden');
+    date.classList.remove('hidden');
+    const label = document.querySelector('label[for="week"]');
+    if (label) label.htmlFor = date.id;
+    const today = new Date();
+    date.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    date.addEventListener('change', () => {
+        if (!date.value) return;
+        const [year, number] = getWeekNumber(new Date(date.value + 'T12:00:00'));
+        week.value = `${year}-W${String(number).padStart(2, '0')}`;
+        week.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
+
 function setupEventListeners() {
     const addBtn = document.getElementById('add-employee-btn');
     if (addBtn) {
@@ -325,7 +346,8 @@ function setupEventListeners() {
             loadSavedData()
                 .then(() => refreshStats())
                 .catch((error) => {
-                    console.warn('Failed to load schedule for week', error);
+                    showBannerMessage('Не вдалося завантажити тиждень. Оновіть сторінку перед редагуванням.');
+                    document.querySelectorAll('#employees-container input, .day-limit-input, #add-employee-btn, #clear-schedule').forEach(el => { el.disabled = true; });
                 });
         });
     }
@@ -398,8 +420,8 @@ function setupEventListeners() {
 }
 
 function addExampleEmployees() {
-    
-    saveData();
+    const container = document.getElementById('employees-container');
+    if (container) container.innerHTML = '<div class="empty-state"><strong>Ваш тиждень починається тут</strong><p>Додайте працівника та заплануйте першу зміну.</p></div>';
 }
 
 function syncShareWeekInput() {
@@ -418,19 +440,19 @@ function getShareTokenFromWindow() {
 async function loadScheduleFromShareToken() {
     const token = getShareTokenFromWindow();
     if (!token) return false;
+    isShareView = true;
+    applyShareViewMode();
 
-    console.info('Share link open', { token });
+
 
     const response = await fetch(`/api/share-links/${encodeURIComponent(token)}`);
     if (!response.ok) {
-        showBannerMessage('Некоректне посилання спільного доступу.');
-        return false;
+        throw new Error('Invalid share link');
     }
 
     const payload = await response.json();
     if (!payload || !Array.isArray(payload.employees)) {
-        showBannerMessage('Посилання не містить графіку.');
-        return false;
+        throw new Error('Invalid share payload');
     }
     const snapshot = sanitizeSnapshot({
         limits: payload.limits,
@@ -768,8 +790,7 @@ function loadScheduleFromShareHash() {
 
     const encoded = hash.slice(7);
     if (!encoded) {
-        showBannerMessage('Некоректне посилання спільного доступу.');
-        return false;
+        throw new Error('Invalid share link');
     }
 
     let payload;
@@ -777,13 +798,11 @@ function loadScheduleFromShareHash() {
         payload = decodeShareData(encoded);
     } catch (error) {
         console.warn('Не вдалося декодувати розклад зі спільного посилання', error);
-        showBannerMessage('Некоректне посилання спільного доступу.');
-        return false;
+        throw new Error('Invalid share link');
     }
 
     if (!payload || typeof payload !== 'object' || !payload.data || !Array.isArray(payload.data.employees)) {
-        showBannerMessage('Посилання не містить графіку.');
-        return false;
+        throw new Error('Invalid share payload');
     }
 
     const weekInput = document.getElementById('week');
@@ -814,6 +833,8 @@ function loadScheduleFromShareHash() {
 }
 
 function applyShareViewMode() {
+    const fallback = document.getElementById('week-date-fallback');
+    if (fallback) fallback.disabled = true;
     document.body.classList.add('shared-view');
 
     document.querySelectorAll('.time-input').forEach(input => {
@@ -1022,6 +1043,7 @@ function addEmployee(name, schedule, shouldSave = true, position = '', options =
     const totalCell = createTotalCell();
     employeeRow.appendChild(totalCell);
     
+    target.querySelectorAll?.('.empty-state').forEach(el => el.remove());
     target.appendChild(employeeRow);
     
     if (!options.deferMetrics) {
@@ -1241,6 +1263,7 @@ function createShiftInput(type, value) {
     input.type = 'text';
     input.className = 'time-input';
     input.dataset.shiftType = type;
+    input.setAttribute('aria-label', type === 'primary' ? 'Основна зміна, наприклад 09:00 - 17:00' : 'Друга зміна');
     input.placeholder = type === 'primary' ? 'вихідний' : 'друга зміна';
     input.value = value || '';
 
@@ -2629,7 +2652,16 @@ function updateTimeline(forceIndex = null, forceDate = null) {
         employeeInfo.className = 'timeline-employee';
         const name = row.querySelector('.employee-name') ? row.querySelector('.employee-name').textContent : '';
         const position = row.querySelector('.employee-position') ? row.querySelector('.employee-position').textContent : '';
-        employeeInfo.innerHTML = `<div class="name">${name}</div>` + (position ? `<div class="position">${position}</div>` : '');
+        const timelineName = document.createElement('div');
+        timelineName.className = 'name';
+        timelineName.textContent = name;
+        employeeInfo.appendChild(timelineName);
+        if (position) {
+            const timelinePosition = document.createElement('div');
+            timelinePosition.className = 'position';
+            timelinePosition.textContent = position;
+            employeeInfo.appendChild(timelinePosition);
+        }
 
         const track = document.createElement('div');
         track.className = 'timeline-track';
@@ -2881,40 +2913,33 @@ function hideNotification() {
 }
 
 // Експорт
-function exportToPDF() {
-    const element = document.querySelector('.container');
-    const opt = {
-        margin: 10,
-        filename: 'work_schedule.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-    };
-
-    toggleControlsVisibility(true);
-    html2pdf().from(element).set(opt).save().then(() => {
-        toggleControlsVisibility(false);
-    });
+async function exportSchedule(format) {
+    if (typeof html2canvas === 'undefined' || (format === 'pdf' && typeof html2pdf === 'undefined')) {
+        showBannerMessage('Експорт ще завантажується. Спробуйте ще раз за кілька секунд.');
+        return;
+    }
+    const clone = document.querySelector('.container').cloneNode(true);
+    clone.classList.add('export-snapshot');
+    clone.style.cssText = 'width:1400px;max-width:none;background:white;';
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:absolute;left:-20000px;top:0;width:1400px;';
+    holder.appendChild(clone);
+    clone.querySelectorAll('.controls, .add-employee, .table-hint').forEach(el => el.remove());
+    document.body.appendChild(holder);
+    try {
+        if (format === 'pdf') {
+            await html2pdf().set({ margin: 8, filename: 'work_schedule.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, windowWidth: 1440 }, jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' } }).from(clone).save();
+        } else {
+            downloadImage(await html2canvas(clone, { scale: 2, windowWidth: 1440, logging: false, useCORS: true }));
+        }
+    } catch {
+        showBannerMessage('Не вдалося експортувати графік. Спробуйте ще раз.');
+    } finally {
+        holder.remove();
+    }
 }
-
-function exportToJPG() {
-    const element = document.querySelector('.container');
-    
-    toggleControlsVisibility(true);
-    html2canvas(element, {
-        scale: 2,
-        logging: false,
-        useCORS: true
-    }).then(canvas => {
-        toggleControlsVisibility(false);
-        downloadImage(canvas);
-    });
-}
-
-function toggleControlsVisibility(hide) {
-    const controls = document.querySelector('.controls');
-    controls.style.display = hide ? 'none' : 'flex';
-}
+function exportToPDF() { return exportSchedule('pdf'); }
+function exportToJPG() { return exportSchedule('jpg'); }
 
 function downloadImage(canvas) {
     const link = document.createElement('a');
@@ -3352,3 +3377,9 @@ const LZ = (function() {
         decompressFromEncodedURIComponent: decompressFromBase62
     };
 })();
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    startApp();
+}

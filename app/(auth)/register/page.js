@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { signup, getUser } from '@netlify/identity';
+import IdentityOptions, { useIdentitySettings } from '@/components/IdentityOptions';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { settings, settingsError } = useIdentitySettings();
+  const [notice, setNotice] = useState('');
   const [fullName, setFullName] = useState('');
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,47 +21,30 @@ export default function RegisterPage() {
     setError('');
     setIsSubmitting(true);
 
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fullName,
-        orgName,
-        email,
-        password
-      })
-    });
-
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      setError(result?.error || 'Помилка реєстрації.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const supabase = createSupabaseBrowserClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    setIsSubmitting(false);
-
-    if (authError) {
-      setError(authError.message);
-      return;
-    }
+    try {
+    await signup(email, password, { full_name: fullName, org_name: orgName });
+    const current = await getUser();
+    if (!current) { setNotice('Перевірте вашу пошту й підтвердьте email за посиланням у листі. Після підтвердження відкриється ваш робочий простір.'); return; }
 
     if (typeof window !== 'undefined') {
       window.location.href = '/schedule';
     } else {
       router.push('/schedule');
     }
+    } catch {
+      setError('Сервіс тимчасово недоступний. Перевірте з’єднання та спробуйте ще раз.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div>
-      <h1>Реєстрація</h1>
+      <h1>Ваша нова команда</h1>
+      <p className="auth-description">Створіть новий обліковий запис. Облікові записи та графіки попереднього сервера автоматично не перенесені.</p>
+      {settingsError && <p className="auth-error" role="alert">{settingsError}</p>}
+      {settings?.disableSignup && <p className="auth-notice">Реєстрація доступна лише за запрошенням.</p>}
+      {notice && <p className="auth-notice" role="status">{notice}</p>}
       <form onSubmit={handleSubmit} className="auth-form">
         <label className="auth-field">
           <span>Ім’я та прізвище</span>
@@ -99,16 +85,18 @@ export default function RegisterPage() {
             type="password"
             name="password"
             autoComplete="new-password"
+            minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
         </label>
-        {error ? <div className="auth-error">{error}</div> : null}
-        <button type="submit" className="primary-btn" disabled={isSubmitting}>
+        {error ? <div className="auth-error" role="alert">{error}</div> : null}
+        <button type="submit" className="primary-btn" disabled={isSubmitting || !settings || settingsError || settings.disableSignup || settings.providers?.email === false || Boolean(notice)}>
           {isSubmitting ? 'Створюємо...' : 'Створити акаунт'}
         </button>
       </form>
+      <IdentityOptions settings={settings} />
       <p className="auth-hint">
         Є акаунт? <a href="/login">Увійти</a>
       </p>
