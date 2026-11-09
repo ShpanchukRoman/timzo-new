@@ -1,0 +1,9 @@
+# Local Netlify folder
+.netlify
+
+# Dependencies and generated Next.js output
+node_modules/
+.next/
+.env*
+
+*.tsbuildinfo
