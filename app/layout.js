@@ -1,4 +1,5 @@
 import './globals.css';
+import './workspace.css';
 import InstallApp from '@/components/InstallApp';
 
 export const metadata = {
@@ -9,7 +10,7 @@ export const metadata = {
   icons: { apple: '/icons/apple-touch-icon.png' }
 };
 
-export const viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#203d32' };
+export const viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#eeece9' };
 
 export default function RootLayout({ children }) {
   return (

@@ -1,4 +1,5 @@
 import Script from 'next/script';
+import WorkspaceNav from './WorkspaceNav';
 
 export default function ScheduleShell({ shareToken = '' }) {
   const shareScript = shareToken
@@ -7,11 +8,11 @@ export default function ScheduleShell({ shareToken = '' }) {
 
   return (
     <>
-      <main id="main-content">
-        <nav className="workspace-nav" aria-label="Розділи"><a href="#schedule-section">Графік змін</a><a href="#timeline-section">Таймлайн</a><a href="#stats-section">Аналітика</a></nav>
+      <main id="main-content" data-mobile-view="schedule">
+        <WorkspaceNav />
         <div id="share-banner" className="share-info-banner hidden"></div>
         <section className="container" id="schedule-section">
-          <div className="section-intro"><h1>Графік змін</h1></div>
+          <div className="section-intro"><div><p className="eyebrow">ВАШ ТИЖДЕНЬ У ПОРЯДКУ</p><h1>Графік змін<span className="title-dot">.</span></h1><p className="section-description">Менше рутини. Більше часу для команди.</p></div><span className="workspace-badge">Простір команди</span></div>
 
           <div className="controls">
             <div className="controls-row">
