@@ -1,5 +1,10 @@
+importScripts('/api/app-version');
 // Never cache authenticated pages, shared links, or API responses.
-self.addEventListener('install', () => self.skipWaiting());
+// Release marker changes with this worker; deployments are also checked on app entry.
+const RELEASE = 'timzo-mobile-week-2026-11-16';
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', event => {
   if (event.request.mode !== 'navigate' || event.request.method !== 'GET') return;

@@ -49,6 +49,7 @@ export default function ScheduleShell({ shareToken = '' }) {
             </div>
           </div>
 
+          <div className="mobile-planner" id="mobile-planner" aria-label="Графік на сім днів" />
           <div className="mobile-day-picker" aria-label="День графіка">
             <div className="mobile-day-heading"><button type="button" id="mobile-day-prev" aria-label="Попередній день">←</button><strong id="mobile-day-title" aria-live="polite"></strong><button type="button" id="mobile-day-next" aria-label="Наступний день">→</button></div>
             <div id="mobile-day-tabs" role="tablist" aria-label="Дні тижня">{['Пн','Вт','Ср','Чт','Пт','Сб','Нд'].map((day, i) => <button type="button" key={day} role="tab" data-mobile-day={i} aria-controls="mobile-day-panel">{day}<span /></button>)}</div>

@@ -158,3 +158,78 @@ input:not([type=checkbox]), select { background: #fdfcfa; border-color: var(--li
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 @media print { .workspace-nav { display: none !important; } #main-content > section { display: block !important; } body { padding-bottom: 0; } }
+
+.mobile-planner { display: none; }
+.planner-sheet { color: var(--ink); background: var(--paper); border: 0; border-radius: 26px; padding: 26px; width: min(460px, calc(100% - 24px)); max-height: 85dvh; overflow-y: auto; box-shadow: 0 20px 90px #302f2c33; }
+.planner-sheet::backdrop { background: #302f2c65; backdrop-filter: blur(5px); }
+.planner-sheet[open] { animation: paper-enter .25s ease both; }
+.planner-sheet form { display: grid; gap: 14px; }
+.planner-sheet h2 { margin: 0; font-size: 25px; }
+.planner-sheet p { margin: 0; color: var(--muted); }
+.planner-sheet label { display: grid; gap: 8px; font-size: 12px; }
+.planner-sheet input { width: 100%; padding: 14px; font-size: 16px; }
+.planner-sheet button { min-height: 44px; }
+.planner-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.planner-presets button { font-size: 11px; padding: 8px; }
+.planner-sheet .planner-error { color: #a04432; font-size: 12px; }
+.update-panel { position: fixed; z-index: 50; left: 50%; transform: translateX(-50%); bottom: calc(100px + env(safe-area-inset-bottom)); width: min(420px, calc(100% - 32px)); background: #302f2c; color: #faf9f7; border-radius: 20px; padding: 18px; box-shadow: 0 8px 40px #302f2c33; }
+.update-panel p { margin: 0 0 12px; font-size: 13px; }
+.update-panel div { display: flex; gap: 8px; }
+.update-panel button { min-height: 44px; padding: 10px 16px; border-radius: 12px; }
+@media (max-width: 767px) {
+  #schedule-section > .mobile-day-picker, #schedule-section > .schedule-scroll { display: none !important; }
+  .mobile-planner { display: block; }
+  #schedule-section .section-intro { margin-bottom: 14px; }
+  #schedule-section .section-description, #schedule-section .eyebrow { display: none; }
+  #schedule-section .controls { margin-bottom: 14px; padding: 10px; }
+  #schedule-section .controls-row { gap: 8px; }
+  #schedule-section .week-selector label { display: none; }
+  #schedule-section .controls-actions button { min-height: 36px; font-size: 12px; }
+  .planner-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; letter-spacing: 1px; color: #827a6f; margin: 0 2px 12px; }
+  .planner-caption span:last-child { letter-spacing: 0; }
+  .planner-track { overflow-x: auto; scrollbar-width: none; border: 1px solid #dfdbd3; border-radius: 20px; background: #faf9f7; overscroll-behavior-x: contain; }
+  .planner-track::-webkit-scrollbar { display: none; }
+  .planner-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; min-width: 100%; font-size: 12px; }
+  .planner-table th, .planner-table td { padding: 0; border: 0; border-right: 1px solid #e8e3dc; border-bottom: 1px solid #e8e3dc; width: 118px; min-width: 118px; max-width: 118px; text-align: center; }
+  .planner-table tr > th:first-child { position: sticky; left: 0; z-index: 2; width: 56px; min-width: 56px; max-width: 56px; background: #efede8; border-right-color: #d9d2c7; }
+  .planner-table thead th { height: 96px; background: #f5f2ec; }
+  .planner-person { background: transparent; border: 0; width: 118px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink); }
+  .planner-person img { border-radius: 50%; box-shadow: 0 0 0 3px #fff; }
+  .planner-person strong { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+  .planner-person small { font-size: 9px; font-weight: 400; color: #8a8175; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .planner-day { position: relative; display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center; width: 56px; height: clamp(46px, 7.2dvh, 68px); border: 0; background: transparent; color: #736c62; }
+  .planner-day span { font-size: 10px; font-weight: 400; }
+  .planner-day strong { font-size: 18px; font-weight: 500; }
+  .planner-today .planner-day { color: #fff; background: #545d4c; border-radius: 13px; width: 46px; margin: 0 5px; }
+  .planner-day[aria-expanded=true] { box-shadow: inset 0 0 0 2px #a18a66; border-radius: 12px; }
+  .planner-note-dot { position: absolute; right: 6px; top: 3px; color: #b3813e; font-size: 20px; }
+  .planner-shift { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; width: 106px; margin: 5px; min-height: 38px; border: 1px solid #dce2d5; border-radius: 11px; background: #e8ede2; color: #49543f; font-size: 11px; font-variant-numeric: tabular-nums; padding: 6px 2px; }
+  .planner-shift small { color: #78816d; font-size: 9px; }
+  .planner-shift.is-off { background: transparent; border: 1px dashed #e2ddd4; color: #aaa195; }
+  .planner-shift:disabled, .planner-person:disabled { opacity: 1; cursor: default; }
+  .planner-details { position: sticky; left: 56px; width: min(300px, calc(100vw - 100px)); text-align: left; padding: 16px; animation: paper-enter .22s ease both; }
+  .planner-details strong { display: block; font-size: 13px; margin-bottom: 12px; }
+  .planner-details label { display: grid; gap: 8px; font-size: 11px; font-weight: 400; color: #827a6f; }
+  .planner-details textarea { width: 100%; resize: vertical; border: 1px solid #ded7cc; border-radius: 12px; padding: 10px; font: inherit; font-size: 16px; background: #fffdf9; color: var(--ink); }
+  .planner-details button { margin-top: 10px; min-height: 44px; }
+  .planner-save-status { display: block; font-size: 11px; padding-top: 8px; }
+  .planner-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+  .planner-footer span { font-size: 10px; color: #8a8175; }
+  .planner-footer button { width: 100%; min-height: 44px; border-style: dashed; }
+  .planner-sheet { margin: auto auto 10px; border-radius: 26px 26px 18px 18px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+}
+@media print { .mobile-planner, .update-panel { display: none !important; } }
+@media (max-width: 767px) {
+  #schedule-section .controls-row { flex-direction: row; align-items: center; }
+  #schedule-section .week-selector { flex: 1; width: auto; min-width: 0; }
+  #schedule-section .controls-actions { width: auto; flex-shrink: 0; gap: 5px; }
+  #schedule-section .controls-actions button { padding: 9px 8px; font-size: 10px; }
+  .planner-day { height: clamp(40px, calc((100dvh - 445px) / 7), 66px); }
+  .planner-shift { min-height: 32px; margin-block: 3px; padding-block: 4px; }
+  .planner-person { padding-block: 8px; }
+  .planner-table thead th { height: 86px; }
+  .planner-footer { flex-wrap: nowrap; }
+  .planner-footer span { max-width: 54%; line-height: 1.5; }
+  .planner-footer button { width: auto; flex: 1; font-size: 11px; }
+  .planner-details input { width: 100%; min-height: 44px; margin-block: 6px; padding: 8px; }
+}
