@@ -1,0 +1,1 @@
+ALTER TABLE "schedules" ADD COLUMN "day_notes" jsonb DEFAULT '["","","","","","",""]' NOT NULL;

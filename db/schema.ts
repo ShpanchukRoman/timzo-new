@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, doublePrecision, integer, boolean, timestamp, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, doublePrecision, integer, boolean, timestamp, uniqueIndex, check, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const workspaces = pgTable('workspaces', {
@@ -21,6 +21,7 @@ export const schedules = pgTable('schedules', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   week: text('week').notNull(),
+  dayNotes: jsonb('day_notes').notNull().default(['', '', '', '', '', '', '']),
 }, table => [uniqueIndex('schedule_workspace_week').on(table.workspaceId, table.week)]);
 export const entries = pgTable('schedule_entries', {
   id: uuid('id').defaultRandom().primaryKey(),

@@ -7,6 +7,8 @@ function startApp() {
 }
 
 let scheduleLoaded = false;
+let dayNotes = Array(7).fill('');
+let expandedPlannerDay = null;
 let cachedDayTotals = new Array(7).fill(0);
 let cachedDayLimits = new Array(7).fill(0);
 let currentWeekDates = [];
@@ -148,6 +150,7 @@ function generateClientId() {
 
 async function loadSavedData() {
     scheduleLoaded = false;
+    expandedPlannerDay = null;
     document.querySelectorAll('#add-employee-btn, #clear-schedule, #share-trigger, .day-limit-input').forEach(el => { el.disabled = true; });
     if (pendingSaveTimer) { clearTimeout(pendingSaveTimer); pendingSaveTimer = null; }
     const weekInput = document.getElementById('week');
@@ -166,6 +169,7 @@ async function loadSavedData() {
 
     const data = await response.json();
     lastLoadedScheduleSnapshot = data;
+    dayNotes = data.dayNotes || Array(7).fill('');
     scheduleLoaded = true;
     document.querySelectorAll('#add-employee-btn, #clear-schedule, #share-trigger, .day-limit-input').forEach(el => { el.disabled = false; });
 
@@ -457,6 +461,7 @@ async function loadScheduleFromShareToken() {
         throw new Error('Invalid share payload');
     }
     const snapshot = sanitizeSnapshot({
+        dayNotes: payload.dayNotes,
         limits: payload.limits,
         employees: payload.employees
     });
@@ -475,6 +480,7 @@ async function loadScheduleFromShareToken() {
 
     isShareView = true;
     lastLoadedScheduleSnapshot = Object.assign({ week: payload.week }, snapshot);
+    dayNotes = snapshot.dayNotes;
 
     if (snapshot.limits) {
         setLimitsData(snapshot.limits);
@@ -597,6 +603,7 @@ function decodeShareData(encoded) {
 
 function buildScheduleSnapshot() {
     const current = {
+        dayNotes: dayNotes.slice(),
         limits: getLimitsData(),
         employees: getEmployeesData()
     };
@@ -606,6 +613,7 @@ function buildScheduleSnapshot() {
 
 function sanitizeSnapshot(data = {}) {
     return {
+        dayNotes: Array.from({length: 7}, (_, i) => typeof data.dayNotes?.[i] === 'string' ? data.dayNotes[i].slice(0,4000) : ''),
         limits: Array.isArray(data.limits)
             ? data.limits.map(value => String(value ?? ''))
             : getLimitsData().map(value => String(value ?? '')),
@@ -816,6 +824,7 @@ function loadScheduleFromShareHash() {
 
     const snapshot = sanitizeSnapshot(payload.data);
     lastLoadedScheduleSnapshot = snapshot;
+    dayNotes = snapshot.dayNotes;
 
     if (!snapshot.employees || snapshot.employees.length === 0) {
         showBannerMessage('Посилання не містить працівників для відображення.');
@@ -986,6 +995,7 @@ function selectMobileDay(index) {
     document.getElementById('mobile-day-title').textContent = date ? date.toLocaleDateString('uk-UA', {weekday:'long', day:'numeric', month:'long'}) : DAY_NAMES[mobileDayIndex];
     document.getElementById('mobile-day-prev').disabled = mobileDayIndex === 0;
     document.getElementById('mobile-day-next').disabled = mobileDayIndex === 6;
+    renderMobilePlanner();
 }
 function setupMobileSchedule() {
     const tabs = document.getElementById('mobile-day-tabs');
@@ -1007,20 +1017,8 @@ function setupMobileSchedule() {
     });
     document.getElementById('mobile-day-prev').onclick = () => selectMobileDay(mobileDayIndex - 1);
     document.getElementById('mobile-day-next').onclick = () => selectMobileDay(mobileDayIndex + 1);
-    const region = document.querySelector('.schedule-scroll');
-    let start = null;
-    region.addEventListener('touchstart', event => {
-        start = !event.target.closest('input,button,select,a') && event.touches.length === 1 ? {x:event.touches[0].clientX, y:event.touches[0].clientY} : null;
-    }, {passive:true});
-    region.addEventListener('touchend', event => {
-        if (!start || !event.changedTouches.length) return;
-        const dx = event.changedTouches[0].clientX - start.x;
-        const dy = event.changedTouches[0].clientY - start.y;
-        start = null;
-        if (matchMedia('(max-width: 767px)').matches && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) selectMobileDay(mobileDayIndex + (dx < 0 ? 1 : -1));
-    }, {passive:true});
-    region.addEventListener('touchcancel', () => { start = null; }, {passive:true});
     selectMobileDay(mobileDayIndex);
+    matchMedia('(max-width: 767px)').addEventListener('change', renderMobilePlanner);
 }
 function labelMobileStats(row) {
     if (!row.matches('.employee-stats-row, .employee-plan-row')) return;
@@ -3463,3 +3461,144 @@ if (document.readyState === 'loading') {
 } else {
     startApp();
 }
+
+// A mobile projection of the same saved schedule; desktop/export retain their layout.
+function plannerElement(tag, className, text) {
+    const element = document.createElement(tag);
+    element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+}
+function renderMobilePlanner() {
+    const host = document.getElementById('mobile-planner');
+    if (!host || !matchMedia('(max-width: 767px)').matches) return;
+    const scroll = host.querySelector('.planner-track')?.scrollLeft || 0;
+    const rows = Array.from(document.querySelectorAll('#employees-container .employee-row'));
+    host.replaceChildren();
+    const caption = plannerElement('div', 'planner-caption');
+    caption.append(plannerElement('span', '', 'ТИЖДЕНЬ КОМАНДИ'), plannerElement('span', '', `${rows.length} працівників · 7 днів`));
+    host.append(caption);
+    const track = plannerElement('div', 'planner-track');
+    track.tabIndex = 0;
+    track.setAttribute('aria-label', 'Гортайте працівників горизонтально');
+    const table = plannerElement('table', 'planner-table');
+    const head = table.createTHead().insertRow();
+    const corner = document.createElement('th'); corner.scope = 'col'; corner.textContent = 'День'; head.append(corner);
+    rows.forEach(row => {
+        const th = document.createElement('th'); th.scope = 'col';
+        const name = row.querySelector('.employee-name').textContent;
+        const person = plannerElement('button', 'planner-person'); person.type = 'button';
+        const img = document.createElement('img');
+        const seed = Array.from(row.dataset.clientId || row.dataset.employeeId || name).reduce((n,c) => n + c.charCodeAt(0), 0);
+        img.src = `/avatars/portrait-${seed % 12}.svg`; img.alt = ''; img.width = 36; img.height = 36;
+        person.append(img, plannerElement('strong', '', name), plannerElement('small', '', row.querySelector('.employee-position')?.textContent || 'Працівник'));
+        person.disabled = isShareView;
+        person.onclick = () => { row.querySelector('.edit-employee').click(); renderMobilePlanner(); };
+        th.append(person); head.append(th);
+    });
+    if (!rows.length) { const th = document.createElement('th'); th.textContent = scheduleLoaded || isShareView ? 'Додайте команду нижче' : 'Завантаження…'; head.append(th); }
+    const body = table.createTBody();
+    for (let day = 0; day < 7; day++) {
+        const tr = body.insertRow();
+        if (currentWeekDates[day] && isSameDay(currentWeekDates[day], new Date())) tr.className = 'planner-today';
+        const th = document.createElement('th'); th.scope = 'row';
+        const toggle = plannerElement('button', 'planner-day'); toggle.type = 'button';
+        toggle.setAttribute('aria-expanded', String(expandedPlannerDay === day));
+        toggle.setAttribute('aria-label', `${DAY_NAMES[day]}${dayNotes[day] ? ', є нотатки' : ', деталі дня'}`);
+        toggle.append(plannerElement('span', '', ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'][day]), plannerElement('strong', '', currentWeekDates[day]?.getDate() || '—'));
+        if (dayNotes[day]) toggle.append(plannerElement('i', 'planner-note-dot', '•'));
+        toggle.onclick = () => { expandedPlannerDay = expandedPlannerDay === day ? null : day; renderMobilePlanner(); };
+        th.append(toggle); tr.append(th);
+        rows.forEach(row => {
+            const source = row.querySelectorAll('.day-cell')[day];
+            const td = tr.insertCell();
+            const shift = plannerElement('button', 'planner-shift'); shift.type = 'button';
+            const values = Array.from(source.querySelectorAll('.time-input')).map(input => input.value).filter(Boolean);
+            const off = source.classList.contains('is-locked') || !values.length;
+            shift.classList.toggle('is-off', off);
+            shift.append(plannerElement('span', '', off ? (isShareView ? 'Вихідний' : '+ Зміна') : values[0].replace(/\s/g,'')));
+            if (!off) shift.append(plannerElement('small', '', values[1]?.replace(/\s/g,'') || `${formatHoursValue(getDailyHoursFromCell(source).adjustedTotal)} год`));
+            shift.setAttribute('aria-label', `${row.querySelector('.employee-name').textContent}, ${DAY_NAMES[day]}: ${off ? 'вихідний' : values.join(', ')}`);
+            shift.disabled = isShareView || !scheduleLoaded;
+            shift.onclick = () => openPlannerShift(row, source, day, shift);
+            td.append(shift);
+        });
+        if (!rows.length) tr.insertCell().textContent = '—';
+        if (expandedPlannerDay === day) {
+            const detailRow = body.insertRow(); detailRow.className = 'planner-detail-row';
+            const td = detailRow.insertCell(); td.colSpan = Math.max(2, rows.length + 1);
+            const panel = plannerElement('div', 'planner-details');
+            panel.append(plannerElement('strong', '', DAY_NAMES[day] + ' · деталі дня'));
+            const label = plannerElement('label', '', 'Завдання, особливості та нагадування');
+            const notes = document.createElement('textarea'); notes.value = dayNotes[day] || ''; notes.maxLength = 4000; notes.rows = 3; notes.placeholder = 'Наприклад: поставка о 10:00, перевірити залишки…'; notes.readOnly = isShareView || !scheduleLoaded;
+            label.append(notes); panel.append(label);
+            const status = plannerElement('span', 'planner-save-status'); status.setAttribute('role','status');
+            if (!isShareView) {
+                const save = plannerElement('button', 'primary-btn', 'Зберегти деталі'); save.type = 'button'; save.disabled = !scheduleLoaded;
+                save.onclick = async () => {
+                    dayNotes[day] = notes.value.trim(); save.disabled = true; status.textContent = 'Збереження…';
+                    try { await persistSchedule(); renderMobilePlanner(); }
+                    catch { status.textContent = 'Не вдалося зберегти. Спробуйте ще раз.'; save.disabled = false; }
+                };
+                panel.append(save);
+            }
+            const limitLabel = plannerElement('label', '', 'Ліміт годин на день');
+            const limit = document.createElement('input'); limit.type = 'number'; limit.min = '0'; limit.step = '0.25';
+            const originalLimit = document.querySelectorAll('.day-limit-input')[day];
+            limit.value = originalLimit.value; limit.disabled = isShareView || !scheduleLoaded;
+            limit.onchange = () => { if (!limit.checkValidity()) return; originalLimit.value = limit.value; calculateAllHours(); saveData(); };
+            limitLabel.append(limit); panel.append(limitLabel);
+            panel.append(status); td.append(panel);
+        }
+    }
+    track.append(table); host.append(track); track.scrollLeft = scroll;
+    const footer = plannerElement('div', 'planner-footer');
+    footer.append(plannerElement('span', '', '↔ Гортайте команду · натисніть день для деталей'));
+    if (!isShareView) { const add = plannerElement('button', 'ghost-btn', '+ Працівник'); add.type = 'button'; add.disabled = !scheduleLoaded; add.onclick = () => { addNewEmployee(); renderMobilePlanner(); }; footer.append(add); }
+    host.append(footer);
+}
+function openPlannerShift(row, source, day, trigger) {
+    const dialog = plannerElement('dialog', 'planner-sheet');
+    const form = document.createElement('form');
+    const title = plannerElement('h2', '', row.querySelector('.employee-name').textContent);
+    title.id = 'planner-sheet-title'; dialog.setAttribute('aria-labelledby', title.id);
+    form.append(title, plannerElement('p', '', DAY_NAMES[day] + ' · ' + (currentWeekDates[day]?.toLocaleDateString('uk-UA') || '')));
+    const fields = [];
+    source.querySelectorAll('.time-input').forEach((input, index) => {
+        const label = plannerElement('label', '', index ? 'Друга зміна (необов’язково)' : 'Години зміни');
+        const field = document.createElement('input'); field.value = input.value; field.placeholder = '09:00 - 17:00'; field.maxLength = 40;
+        label.append(field); fields.push(field); form.append(label);
+    });
+    const presets = plannerElement('div', 'planner-presets');
+    ['08:00 - 16:00','09:00 - 17:00','12:00 - 20:00'].forEach(value => { const b = plannerElement('button', 'ghost-btn', value.replace(/\s/g,'')); b.type = 'button'; b.onclick = () => fields[0].value = value; presets.append(b); });
+    const error = plannerElement('p', 'planner-error'); error.setAttribute('role','alert');
+    const save = plannerElement('button', 'primary-btn', 'Зберегти зміну'); save.type = 'submit';
+    const off = plannerElement('button', 'ghost-btn', 'Вихідний'); off.type = 'button'; off.onclick = () => { fields.forEach(f => f.value = ''); form.requestSubmit(); };
+    const cancel = plannerElement('button', 'ghost-btn', 'Скасувати'); cancel.type = 'button'; cancel.onclick = () => dialog.close();
+    form.append(presets, error, save, off, cancel);
+    form.onsubmit = async event => {
+        event.preventDefault();
+        if (fields.some(f => { if (!f.value.trim()) return false; const parts = f.value.split('-').map(parseTimeString); return parts.length !== 2 || parts.some(p => !p) || timeToMinutes(parts[1]) <= timeToMinutes(parts[0]); })) { error.textContent = 'Вкажіть різний час початку та кінця: 09:00 - 17:00. Хвилини: 00 або 30.'; return; }
+        source.classList.remove('is-locked');
+        source.dataset.locked = 'false';
+        source.querySelectorAll('.time-input').forEach((input,i) => { input.disabled = false; input.readOnly = false; input.value = fields[i].value.trim(); });
+        const offLabel = source.querySelector('.day-off-label'); if (offLabel) offLabel.style.display = 'none';
+        calculateAllHours(); save.disabled = true; error.textContent = 'Збереження…';
+        try { await persistSchedule(); dialog.close(); }
+        catch { error.textContent = 'Не вдалося зберегти. Спробуйте ще раз.'; save.disabled = false; }
+    };
+    dialog.append(form); document.body.append(dialog);
+    dialog.addEventListener('close', () => { dialog.remove(); document.querySelectorAll('.planner-shift')[day * document.querySelectorAll('#employees-container .employee-row').length + Array.from(row.parentNode.children).indexOf(row)]?.focus(); }, {once:true});
+    dialog.showModal();
+}
+
+window.__timzoFlushChanges = async () => {
+    if (document.querySelector('.planner-sheet[open]')) { showBannerMessage('Завершіть редагування зміни перед оновленням.'); throw new Error('Editing shift'); }
+    const draft = document.querySelector('.planner-details textarea');
+    if (draft && expandedPlannerDay !== null && !isShareView) dayNotes[expandedPlannerDay] = draft.value.trim();
+    if (pendingSaveTimer) { clearTimeout(pendingSaveTimer); pendingSaveTimer = null; }
+    if (scheduleLoaded && !isShareView) {
+        try { await persistSchedule(); }
+        catch (error) { showBannerMessage('Оновлення відкладено: спочатку потрібно зберегти зміни. Перевірте інтернет.'); throw error; }
+    }
+};

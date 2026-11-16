@@ -27,7 +27,7 @@ async function readSchedule(db: any, workspaceId: string, week: string) {
   const slots = schedule ? await db.select().from(entries).where(eq(entries.scheduleId, schedule.id)) : [];
   const limits = schedule ? await db.select().from(dayLimits).where(eq(dayLimits.scheduleId, schedule.id)) : [];
   return {
-    week, limits: DEFAULT_LIMITS.map((fallback: number, index: number) => String(limits.find((l: any) => l.dayIndex === index)?.hours ?? fallback)),
+    week, dayNotes: schedule?.dayNotes || Array(7).fill(''), limits: DEFAULT_LIMITS.map((fallback: number, index: number) => String(limits.find((l: any) => l.dayIndex === index)?.hours ?? fallback)),
     employees: staff.map((employee: any, index: number) => ({
       id: employee.id, clientId: employee.clientId, index, name: employee.name, position: employee.position, sortIndex: employee.sortIndex,
       schedule: Array.from({ length: 7 }, (_, dayIndex) => {
@@ -41,6 +41,7 @@ function validateSchedule(body: any) {
   if (!body || typeof body !== 'object') fail('Некоректні дані графіка.');
   requireWeek(body.week);
   if (!Array.isArray(body.employees) || body.employees.length > 300 || !Array.isArray(body.limits) || body.limits.length !== 7 || body.limits.some((h: any) => !validHours(h))) fail('Некоректні дані графіка.');
+  if (body.dayNotes !== undefined && (!Array.isArray(body.dayNotes) || body.dayNotes.length !== 7 || body.dayNotes.some((note: any) => typeof note !== 'string' || note.length > 4000))) fail('Нотатки дня мають містити до 4000 символів.');
   const ids = new Set();
   for (const employee of body.employees) {
     if (!employee || typeof employee.name !== 'string' || !employee.name.trim() || employee.name.length > 160 || typeof employee.position !== 'string' || employee.position.length > 160) fail('Перевірте ім’я та посаду працівника.');
@@ -64,6 +65,7 @@ async function saveSchedule(db: any, workspaceId: string, body: any) {
     if (body.employees.some((e: any) => e.id && !ownedIds.has(e.id)) || (body.deletedEmployees || []).some((id: any) => !ownedIds.has(id))) fail('Працівника не знайдено.', 404);
     // Serialize concurrent writes to the same week and keep all changes atomic.
     await tx.execute(sql`SELECT id FROM schedules WHERE id = ${schedule.id} FOR UPDATE`);
+    if (body.dayNotes !== undefined) await tx.update(schedules).set({ dayNotes: body.dayNotes }).where(eq(schedules.id, schedule.id));
     await tx.insert(dayLimits).values(body.limits.map((hours: any, dayIndex: number) => ({ scheduleId: schedule.id, dayIndex, hours: Number(hours) }))).onConflictDoUpdate({ target: [dayLimits.scheduleId, dayLimits.dayIndex], set: { hours: sql`excluded.hours` } });
     if (body.deletedEmployees?.length) await tx.update(employees).set({ active: false }).where(and(eq(employees.workspaceId, workspaceId), inArray(employees.id, body.deletedEmployees)));
     const result = [];
