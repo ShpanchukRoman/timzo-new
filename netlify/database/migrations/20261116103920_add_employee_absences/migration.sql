@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "absences" jsonb DEFAULT '[]' NOT NULL;

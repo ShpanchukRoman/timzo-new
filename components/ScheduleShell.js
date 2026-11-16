@@ -12,41 +12,19 @@ export default function ScheduleShell({ shareToken = '' }) {
         <WorkspaceNav />
         <div id="share-banner" className="share-info-banner hidden"></div>
         <section className="container" id="schedule-section">
-          <div className="section-intro"><div><p className="eyebrow">ВАШ ТИЖДЕНЬ У ПОРЯДКУ</p><h1>Графік змін<span className="title-dot">.</span></h1><p className="section-description">Менше рутини. Більше часу для команди.</p></div><span className="workspace-badge">Простір команди</span></div>
-
-          <div className="controls">
-            <div className="controls-row">
-              <div className="week-selector">
-                <label htmlFor="week">Обрати тиждень:</label>
-                <input type="week" id="week" name="week" aria-label="Тиждень графіка" />
-                <input type="date" id="week-date-fallback" className="hidden" aria-label="Оберіть будь-який день потрібного тижня" />
-              </div>
-              <div className="controls-actions">
-                <button id="share-trigger" className="primary-btn" aria-expanded="false" aria-controls="share-inline-panel">
-                  Поділитися
-                </button>
-                <button id="clear-schedule" className="ghost-btn danger">Очистити</button>
-              </div>
-            </div>
-            <div id="share-inline-panel" className="share-inline-panel hidden">
-              <form id="share-form" className="share-inline-form">
-                <div className="share-fields">
-                  <label className="share-field">
-                    <span>Тиждень</span>
-                    <input type="week" id="share-week" required />
-                  </label>
-                </div>
-                <div className="share-actions">
-                  <button type="submit" className="primary-btn">Згенерувати посилання</button>
-                  <div className="share-exports">
-                    <button id="export-pdf" type="button">Експорт в PDF</button>
-                    <button id="export-jpg" type="button">Експорт в JPG</button>
-                  </div>
-                </div>
-                <p className="hint">Створене посилання відкриває розклад лише для перегляду.</p>
-              </form>
-              <div id="share-result" className="share-result hidden"></div>
-            </div>
+          <div className="planner-toolbar">
+            <button type="button" id="week-prev" aria-label="Попередній тиждень">↑</button>
+            <div className="week-selector"><label className="sr-only" htmlFor="week">Тиждень графіка</label><input type="week" id="week" aria-label="Тиждень графіка" /><input type="date" id="week-date-fallback" className="hidden" aria-label="Дата тижня" /></div>
+            <button type="button" id="week-next" aria-label="Наступний тиждень">↓</button>
+            <details className="planner-actions"><summary aria-label="Дії з графіком">•••</summary><div>
+              <button id="add-employee-btn" type="button">+ Працівник</button>
+              <button id="share-trigger" type="button" aria-expanded="false" aria-controls="share-inline-panel">Поділитися</button>
+              <button id="clear-schedule" type="button" className="danger">Очистити тиждень</button>
+            </div></details>
+          </div>
+          <div id="share-inline-panel" className="share-inline-panel hidden">
+            <form id="share-form" className="share-inline-form"><label>Тиждень<input type="week" id="share-week" required /></label><button type="submit" className="primary-btn">Згенерувати посилання</button><div className="share-exports"><button id="export-pdf" type="button">PDF</button><button id="export-jpg" type="button">JPG</button></div></form>
+            <div id="share-result" className="share-result hidden"></div>
           </div>
 
           <div className="mobile-planner" id="mobile-planner" aria-label="Графік на сім днів" />
@@ -98,9 +76,7 @@ export default function ScheduleShell({ shareToken = '' }) {
             <div className="empty-state">Завантаження вашого графіка…</div>
           </div>
 
-          <div className="add-employee">
-            <button id="add-employee-btn" className="ghost-btn">Додати працівника</button>
-          </div>
+
 
           <div className="used-hours-row">
             <div className="label-cell">Використані години в день</div>

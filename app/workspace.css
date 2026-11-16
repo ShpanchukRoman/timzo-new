@@ -233,3 +233,69 @@ input:not([type=checkbox]), select { background: #fdfcfa; border-color: var(--li
   .planner-footer button { width: auto; flex: 1; font-size: 11px; }
   .planner-details input { width: 100%; min-height: 44px; margin-block: 6px; padding: 8px; }
 }
+
+/* Edge-to-edge workspace, shared by every current and future page. */
+html { min-height: 100%; scrollbar-width: none; }
+body { margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); min-height: 100dvh; overflow-x: hidden; scrollbar-width: none; }
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
+#main-content { width: 100%; max-width: none; margin: 0; padding: 0; }
+.app-header { height: 42px; min-height: 0; padding: 4px 12px 4px 48px; border-bottom: 1px solid var(--line); }
+.brand { font-size: 24px; }
+.brand span, .header-user { display: none; }
+.app-header .ghost-btn { min-height: 30px; padding: 4px 10px; }
+.workspace-menu { position: absolute; top: calc(env(safe-area-inset-top) + 3px); left: max(4px, env(safe-area-inset-left)); z-index: 30; }
+.workspace-menu > summary, .planner-actions > summary { list-style: none; cursor: pointer; display: grid; place-items: center; width: 38px; min-height: 36px; border-radius: 8px; }
+summary::-webkit-details-marker { display: none; }
+.workspace-menu .workspace-nav { position: absolute; top: 42px; left: 0; bottom: auto; transform: none; width: 200px; margin: 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 8px 24px #302f2c20; }
+.workspace-menu .nav-sections { display: grid; gap: 2px; }
+.workspace-menu .workspace-nav a { flex-direction: row; justify-content: start; min-height: 44px; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.workspace-menu .workspace-nav a span { font-size: 13px; }
+#main-content[data-mobile-view="schedule"] > :is(#timeline-section, #stats-section),
+#main-content[data-mobile-view="timeline"] > :is(#schedule-section, #stats-section),
+#main-content[data-mobile-view="stats"] > :is(#schedule-section, #timeline-section) { display: none; }
+#main-content > section { width: 100%; max-width: none; min-width: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; padding: 8px; }
+#main-content > #schedule-section { padding: 0; }
+.planner-toolbar { height: 42px; display: flex; align-items: center; gap: 2px; padding: 2px 6px; background: var(--paper); }
+.planner-toolbar > button { border: 0; background: transparent; min-width: 36px; min-height: 36px; color: var(--ink); }
+.planner-toolbar .week-selector { flex: 1; width: auto; }
+.planner-toolbar input { width: 100%; max-width: 220px; min-height: 34px; padding: 4px 6px; border: 0; font-size: 14px; }
+.planner-actions { position: relative; }
+.planner-actions > div { position: absolute; right: 0; top: 40px; width: 195px; padding: 6px; z-index: 25; display: grid; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px #302f2c20; }
+.planner-actions button { text-align: left; padding: 12px; background: transparent; color: var(--ink); border: 0; }
+#schedule-section > .mobile-day-picker, #schedule-section > .schedule-scroll { display: none !important; }
+.mobile-planner { display: block; }
+.planner-caption, .planner-footer { display: none; }
+.planner-track { overflow: auto; max-height: calc(100dvh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); border: 0; border-radius: 0; background: var(--paper); overscroll-behavior: contain; }
+.planner-table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; font-size: 12px; }
+.planner-table th, .planner-table td { padding: 0; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 94px; width: 94px; text-align: center; }
+.planner-table tr > th:first-child { position: sticky; left: 0; z-index: 2; width: 42px; min-width: 42px; max-width: 42px; background: #efede8; }
+.planner-table thead { position: sticky; top: 0; z-index: 4; }
+.planner-table thead th { height: 44px; background: #efede8; }
+.planner-person { width: 100%; min-width: 94px; padding: 6px 4px; min-height: 44px; background: transparent; color: var(--ink); border: 0; }
+.planner-person strong { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 11px; }
+.planner-person img, .planner-person small { display: none; }
+.planner-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: transparent; color: var(--ink); width: 42px; height: max(48px, calc((100dvh - 130px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 7)); }
+.planner-day span { font-size: 10px; }
+.planner-day strong { font-size: 17px; }
+.planner-today .planner-day { width: 42px; margin: 0; border-radius: 0; background: #545d4c; color: white; }
+.planner-shift { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: calc(100% - 4px); min-height: 44px; margin: 2px; padding: 4px 1px; border: 0; border-radius: 3px; background: #e8ede2; color: #49543f; font-size: 11px; font-variant-numeric: tabular-nums; }
+.planner-shift small { font-size: 9px; color: #78816d; }
+.planner-shift.is-off { background: transparent; border: 0; color: #aaa195; }
+.planner-absence { background: #eaf0e3; box-shadow: inset 0 0 0 2px #91a57c; border-radius: 8px; }
+.planner-absence.sick { background: #f6e9df; box-shadow: inset 0 0 0 2px #c29a7d; }
+.planner-absence.unpaid, .planner-absence.other { background: #ece9f1; box-shadow: inset 0 0 0 2px #a097b3; }
+.planner-absence > button { width: 100%; min-height: 44px; background: transparent; border: 0; color: var(--ink); font-size: 12px; padding: 8px 3px; overflow-wrap: anywhere; }
+.planner-absence small { display: block; margin-top: 6px; font-size: 10px; }
+.absence-list { display: grid; gap: 8px; }
+.absence-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.planner-sheet select { width: 100%; min-height: 44px; font-size: 16px; padding: 8px; }
+.shared-view .planner-toolbar { display: flex; }
+.shared-view .planner-actions { display: none; }
+@media (min-width: 768px) { .planner-day { max-height: 120px; } .planner-table th, .planner-table td { min-width: 120px; } }
+@media print { .workspace-menu, .planner-toolbar { display: none !important; } #schedule-section > .schedule-scroll { display: block !important; } .mobile-planner { display: none !important; } }
+.planner-table { width: max-content; min-width: 100%; }
+.planner-toolbar .week-selector label { display: none; }
+#schedule-section .share-inline-panel { margin: 0; padding: 12px; border-radius: 0; }
+.share-info-banner:empty { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

@@ -20,6 +20,7 @@ let shareBannerTimer = null;
 let lastGeneratedShareUrl = '';
 let lastShareEmployeeCount = 0;
 let pendingSaveTimer = null;
+let saveQueue = Promise.resolve();
 let lastLoadedScheduleSnapshot = null;
 let deletedEmployeeIds = new Set();
 let statsCache = null;
@@ -35,6 +36,7 @@ async function initApp() {
     setCurrentWeek();
     setupEventListeners();
     setupMobileSchedule();
+    setupWeekGestures();
     setupWeekDateFallback();
     applyCurrentWeekSelection();
     syncShareWeekInput();
@@ -75,7 +77,13 @@ function saveData() {
     }, 300);
 }
 
-async function persistSchedule() {
+function persistSchedule() {
+    const next = saveQueue.catch(() => {}).then(writeSchedule);
+    saveQueue = next;
+    return next;
+}
+
+async function writeSchedule() {
     if (!scheduleLoaded && !isShareView) throw new Error('Дочекайтеся завантаження графіка.');
     if (isShareView) {
         return;
@@ -215,6 +223,7 @@ function renderEmployeesFromSnapshot(employees, options = {}) {
             Object.assign({}, options, {
                 container: fragment,
                 deferMetrics: true,
+                absences: emp.absences || [],
                 employeeId: emp.id || null,
                 clientId: emp.clientId || emp.id || null,
                 index
@@ -256,6 +265,7 @@ function getEmployeesData() {
             name,
             position,
             schedule,
+            absences: JSON.parse(row.dataset.absences || '[]'),
             sortIndex: index
         });
     });
@@ -340,24 +350,29 @@ function setupEventListeners() {
     if (exportJpgBtn) {
         exportJpgBtn.addEventListener('click', exportToJPG);
     }
-    
+
     const weekInput = document.getElementById('week');
     if (weekInput) {
-        weekInput.addEventListener('change', function() {
-            updateWeekDates();
-            syncShareWeekInput();
-            if (this.value) {
-                localStorage.setItem('workScheduleWeek', this.value);
-            }
-            loadSavedData()
-                .then(() => refreshStats())
-                .catch((error) => {
-                    showBannerMessage('Не вдалося завантажити тиждень. Оновіть сторінку перед редагуванням.');
-                    document.querySelectorAll('#employees-container input, .day-limit-input, #add-employee-btn, #clear-schedule').forEach(el => { el.disabled = true; });
-                });
+        weekInput.addEventListener('change', async function() {
+            if (isShareView) return;
+            const target = this.value;
+            const previous = lastLoadedScheduleSnapshot?.week;
+            this.disabled = true;
+            try {
+                if (previous && scheduleLoaded) {
+                    this.value = previous;
+                    await window.__timzoFlushChanges();
+                }
+                this.value = target;
+                updateWeekDates(); syncShareWeekInput();
+                await loadSavedData(); await refreshStats();
+            } catch {
+                if (previous && scheduleLoaded) { this.value = previous; updateWeekDates(); }
+                showBannerMessage('Не вдалося перейти до тижня. Перевірте з’єднання та повторіть.');
+            } finally { this.disabled = false; }
         });
     }
-    
+
     // Ліміти годин
     document.querySelectorAll('.day-limit-input').forEach(input => {
         input.addEventListener('change', function() {
@@ -640,7 +655,7 @@ function sanitizeEmployeeRecord(record = {}) {
         return { primary, secondary, locked };
     });
 
-    return { id, clientId, sortIndex, name, position, schedule: normalizedSchedule };
+    return { id, clientId, sortIndex, name, position, absences: Array.isArray(record.absences) ? record.absences : [], schedule: normalizedSchedule };
 }
 
 function readStoredScheduleData() {
@@ -846,6 +861,9 @@ function loadScheduleFromShareHash() {
 function applyShareViewMode() {
     const fallback = document.getElementById('week-date-fallback');
     if (fallback) fallback.disabled = true;
+    document.getElementById('week').disabled = true;
+    document.getElementById('week-prev').disabled = true;
+    document.getElementById('week-next').disabled = true;
     document.body.classList.add('shared-view');
 
     document.querySelectorAll('.time-input').forEach(input => {
@@ -1038,15 +1056,15 @@ function updateWeekDates() {
     const year = Number(parts[0]);
     const week = Number(parts[1]);
     if (!Number.isInteger(year) || !Number.isInteger(week)) return;
-    
+
     const date = new Date(year, 0, 1);
     const dayNum = date.getDay();
     const dayDiff = (dayNum <= 4) ? 1 - dayNum : 8 - dayNum;
     date.setDate(date.getDate() + dayDiff + (week - 1) * 7);
-    
+
     const dayCells = document.querySelectorAll('.table-header .day-cell');
     currentWeekDates = [];
-    
+
     for (let i = 0; i < 7; i++) {
         const currentDate = new Date(date);
         currentDate.setDate(date.getDate() + i);
@@ -1095,6 +1113,7 @@ function addEmployee(name, schedule, shouldSave = true, position = '', options =
     if (!target) return null;
     const employeeRow = document.createElement('div');
     employeeRow.className = 'employee-row';
+    employeeRow.dataset.absences = JSON.stringify(options.absences || []);
     if (options.employeeId) {
         employeeRow.dataset.employeeId = options.employeeId;
     }
@@ -1102,23 +1121,23 @@ function addEmployee(name, schedule, shouldSave = true, position = '', options =
     if (clientId) {
         employeeRow.dataset.clientId = clientId;
     }
-    
+
     const labelCell = createNameCell(name, position);
     employeeRow.appendChild(labelCell);
-    
+
     const normalizedSchedule = Array.from({ length: 7 }, (_, index) => normalizeScheduleValue(schedule ? schedule[index] : undefined));
     for (let i = 0; i < 7; i++) {
         const dayCell = createDayCell(normalizedSchedule[i]);
         dayCell.dataset.dayIndex = i;
         employeeRow.appendChild(dayCell);
     }
-    
+
     const totalCell = createTotalCell();
     employeeRow.appendChild(totalCell);
-    
+
     target.querySelectorAll?.('.empty-state').forEach(el => el.remove());
     target.appendChild(employeeRow);
-    
+
     if (!options.deferMetrics) {
         calculateAllHours();
     }
@@ -1127,7 +1146,7 @@ function addEmployee(name, schedule, shouldSave = true, position = '', options =
     renderEmployeeDetailStats();
 
     updateMoveButtonsState();
-    
+
     if (shouldSave && !options.skipSave) {
         saveData();
     }
@@ -1168,53 +1187,11 @@ function createNameCell(name, position = '') {
     editBtn.innerHTML = '<span aria-hidden="true">✎</span>';
     editBtn.title = 'Редагувати працівника';
     editBtn.setAttribute('aria-label', 'Редагувати працівника');
-    editBtn.addEventListener('click', function() {
-        if (isShareView) {
-            showBannerMessage('У режимі перегляду не можна редагувати працівника.');
-            return;
-        }
-        const row = this.closest('.employee-row');
-        if (!row) return;
-
-        const currentName = nameSpan.textContent;
-        const currentPosition = positionSpan ? positionSpan.textContent : '';
-
-        const newNameInput = prompt('Оновити ім\'я працівника:', currentName);
-        if (newNameInput === null) return;
-        const trimmedName = newNameInput.trim();
-        if (trimmedName !== '') {
-            nameSpan.textContent = trimmedName;
-            nameSpan.title = trimmedName;
-        }
-
-        const newPositionInput = prompt('Оновити посаду працівника:', currentPosition);
-        if (newPositionInput === null) {
-            saveData();
-            updateWeeklyStats();
-            return;
-        }
-
-        const trimmedPosition = newPositionInput.trim();
-        if (trimmedPosition === '') {
-            if (positionSpan && positionSpan.parentElement) {
-                positionSpan.remove();
-                positionSpan = null;
-            }
-        } else {
-            if (!positionSpan) {
-                positionSpan = document.createElement('span');
-                positionSpan.className = 'employee-position';
-                infoWrapper.appendChild(positionSpan);
-            }
-            positionSpan.textContent = trimmedPosition;
-            positionSpan.title = trimmedPosition;
-        }
-
-        populateEmployeeDetailSelect();
-        updateWeeklyStats();
-        updateTimeline();
-        saveData();
-    });
+    editBtn.addEventListener('click', () => openEmployeeSettings(labelCell.closest('.employee-row')));
+    infoWrapper.tabIndex = 0;
+    infoWrapper.setAttribute('role', 'button');
+    infoWrapper.onclick = () => openEmployeeSettings(labelCell.closest('.employee-row'));
+    infoWrapper.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); infoWrapper.click(); } };
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'delete-employee';
@@ -1800,7 +1777,7 @@ function calculateUsedHours() {
     const dayLimits = Array.from(dayLimitInputs).map(input => parseInt(input.value) || 0);
     const dayNames = DAY_NAMES;
     const dateCells = document.querySelectorAll('.table-header .day-cell');
-    
+
     // Розраховуємо суму годин по дням
     document.querySelectorAll('.employee-row').forEach(row => {
         row.querySelectorAll('.day-cell').forEach((cell, index) => {
@@ -1834,7 +1811,7 @@ function updateUsedHoursRow(dayTotals, dayLimits, dayNames, dateCells) {
     const dayCells = usedHoursRow.querySelectorAll('.day-cell');
     let weekTotal = 0;
     let notificationMessages = [];
-    
+
     dayTotals.forEach((total, index) => {
         dayCells[index].textContent = formatHoursValue(total);
         weekTotal += total;
@@ -3471,13 +3448,13 @@ function plannerElement(tag, className, text) {
 }
 function renderMobilePlanner() {
     const host = document.getElementById('mobile-planner');
-    if (!host || !matchMedia('(max-width: 767px)').matches) return;
+    if (!host) return;
     const scroll = host.querySelector('.planner-track')?.scrollLeft || 0;
     const rows = Array.from(document.querySelectorAll('#employees-container .employee-row'));
     host.replaceChildren();
     const caption = plannerElement('div', 'planner-caption');
     caption.append(plannerElement('span', '', 'ТИЖДЕНЬ КОМАНДИ'), plannerElement('span', '', `${rows.length} працівників · 7 днів`));
-    host.append(caption);
+
     const track = plannerElement('div', 'planner-track');
     track.tabIndex = 0;
     track.setAttribute('aria-label', 'Гортайте працівників горизонтально');
@@ -3488,15 +3465,12 @@ function renderMobilePlanner() {
         const th = document.createElement('th'); th.scope = 'col';
         const name = row.querySelector('.employee-name').textContent;
         const person = plannerElement('button', 'planner-person'); person.type = 'button';
-        const img = document.createElement('img');
-        const seed = Array.from(row.dataset.clientId || row.dataset.employeeId || name).reduce((n,c) => n + c.charCodeAt(0), 0);
-        img.src = `/avatars/portrait-${seed % 12}.svg`; img.alt = ''; img.width = 36; img.height = 36;
-        person.append(img, plannerElement('strong', '', name), plannerElement('small', '', row.querySelector('.employee-position')?.textContent || 'Працівник'));
+        person.append(plannerElement('strong', '', name));
         person.disabled = isShareView;
-        person.onclick = () => { row.querySelector('.edit-employee').click(); renderMobilePlanner(); };
+        person.onclick = () => openEmployeeSettings(row);
         th.append(person); head.append(th);
     });
-    if (!rows.length) { const th = document.createElement('th'); th.textContent = scheduleLoaded || isShareView ? 'Додайте команду нижче' : 'Завантаження…'; head.append(th); }
+    if (!rows.length) { const th = document.createElement('th'); th.textContent = scheduleLoaded || isShareView ? 'Додайте працівника в меню •••' : 'Завантаження…'; head.append(th); }
     const body = table.createTBody();
     for (let day = 0; day < 7; day++) {
         const tr = body.insertRow();
@@ -3511,7 +3485,17 @@ function renderMobilePlanner() {
         th.append(toggle); tr.append(th);
         rows.forEach(row => {
             const source = row.querySelectorAll('.day-cell')[day];
+            const absence = absenceForDay(row, day);
+            if (absence && day > 0 && absenceForDay(row, day - 1) === absence) return;
             const td = tr.insertCell();
+            if (absence) {
+                let span = 1; while (day + span < 7 && absenceForDay(row, day + span) === absence) span++;
+                td.rowSpan = span; td.className = 'planner-absence ' + absence.type;
+                const label = plannerElement('button', '', ABSENCE_LABELS[absence.type]); label.type = 'button';
+                label.append(plannerElement('small', '', `${absence.start.slice(5).replace('-', '.')} – ${absence.end.slice(5).replace('-', '.')}`));
+                label.disabled = isShareView || !scheduleLoaded; label.onclick = () => openEmployeeSettings(row);
+                td.append(label); return;
+            }
             const shift = plannerElement('button', 'planner-shift'); shift.type = 'button';
             const values = Array.from(source.querySelectorAll('.time-input')).map(input => input.value).filter(Boolean);
             const off = source.classList.contains('is-locked') || !values.length;
@@ -3552,10 +3536,7 @@ function renderMobilePlanner() {
         }
     }
     track.append(table); host.append(track); track.scrollLeft = scroll;
-    const footer = plannerElement('div', 'planner-footer');
-    footer.append(plannerElement('span', '', '↔ Гортайте команду · натисніть день для деталей'));
-    if (!isShareView) { const add = plannerElement('button', 'ghost-btn', '+ Працівник'); add.type = 'button'; add.disabled = !scheduleLoaded; add.onclick = () => { addNewEmployee(); renderMobilePlanner(); }; footer.append(add); }
-    host.append(footer);
+
 }
 function openPlannerShift(row, source, day, trigger) {
     const dialog = plannerElement('dialog', 'planner-sheet');
@@ -3602,3 +3583,111 @@ window.__timzoFlushChanges = async () => {
         catch (error) { showBannerMessage('Оновлення відкладено: спочатку потрібно зберегти зміни. Перевірте інтернет.'); throw error; }
     }
 };
+
+const ABSENCE_LABELS = { vacation: 'Відпустка', sick: 'Лікарняний', unpaid: 'За власний рахунок', other: 'Інша відсутність' };
+const absenceCache = new WeakMap();
+function absenceForDay(row, day) {
+    const raw = row.dataset.absences || '[]';
+    if (absenceCache.get(row)?.raw !== raw) absenceCache.set(row, { raw, items: JSON.parse(raw) });
+    const date = currentWeekDates[day];
+    if (!date) return null;
+    const key = formatDateISO(date);
+    return absenceCache.get(row).items.find(a => a.start <= key && a.end >= key);
+}
+function openEmployeeSettings(row) {
+    if (isShareView || !scheduleLoaded || !row) return;
+    const dialog = plannerElement('dialog', 'planner-sheet');
+    dialog.setAttribute('aria-label', 'Налаштування працівника');
+    const form = document.createElement('form');
+    form.append(plannerElement('h2', '', 'Працівник'));
+    function field(text, type, value = '') {
+        const label = plannerElement('label', '', text), input = document.createElement('input');
+        input.type = type; input.value = value; label.append(input); form.append(label); return input;
+    }
+    const name = field('Ім’я', 'text', row.querySelector('.employee-name').textContent); name.required = true; name.maxLength = 160;
+    const position = field('Посада', 'text', row.querySelector('.employee-position')?.textContent || ''); position.maxLength = 160;
+    let absences = JSON.parse(row.dataset.absences || '[]');
+    const list = plannerElement('div', 'absence-list'); form.append(list);
+    function drawList() {
+        list.replaceChildren();
+        absences.forEach((a, i) => {
+            const item = plannerElement('div', 'absence-item', `${ABSENCE_LABELS[a.type]} · ${a.start} — ${a.end}`);
+            const remove = plannerElement('button', 'ghost-btn', 'Видалити'); remove.type = 'button'; remove.onclick = () => { absences.splice(i, 1); drawList(); };
+            item.append(remove); list.append(item);
+        });
+    }
+    drawList();
+    form.append(plannerElement('h3', '', 'Додати відсутність'));
+    const label = plannerElement('label', '', 'Тип відсутності'), type = document.createElement('select');
+    Object.entries(ABSENCE_LABELS).forEach(([value, text]) => { const o = document.createElement('option'); o.value = value; o.textContent = text; type.append(o); });
+    label.append(type); form.append(label);
+    const start = field('Початок (включно)', 'date'), end = field('Кінець (включно)', 'date');
+    [start, end].forEach(f => { f.min = '2000-01-01'; f.max = '2200-12-31'; });
+    form.append(plannerElement('p', '', 'Відсутність замінює зміни у вибраному періоді. Дати можуть охоплювати кілька тижнів.'));
+    const error = plannerElement('p', 'planner-error'); error.setAttribute('role', 'alert');
+    const save = plannerElement('button', 'primary-btn', 'Зберегти'); save.type = 'submit';
+    const cancel = plannerElement('button', 'ghost-btn', 'Скасувати'); cancel.type = 'button'; cancel.onclick = () => dialog.close();
+    form.append(error, save, cancel);
+    form.onsubmit = async e => {
+        e.preventDefault();
+        if (!name.value.trim()) { error.textContent = 'Вкажіть ім’я.'; return; }
+        const next = [...absences];
+        if (start.value || end.value) {
+            if (!start.value || !end.value || start.value > end.value || next.some(a => a.start <= end.value && a.end >= start.value)) { error.textContent = 'Вкажіть початок і кінець без перетину з іншими періодами.'; return; }
+            next.push({ type: type.value, start: start.value, end: end.value });
+        }
+        const old = { name: row.querySelector('.employee-name').textContent, position: row.querySelector('.employee-position')?.textContent || '', absences: row.dataset.absences };
+        function apply(n, p, a) {
+            row.querySelector('.employee-name').textContent = n;
+            let node = row.querySelector('.employee-position');
+            if (!node) { node = plannerElement('span', 'employee-position'); row.querySelector('.employee-info').append(node); }
+            node.textContent = p; row.dataset.absences = a;
+        }
+        apply(name.value.trim(), position.value.trim(), JSON.stringify(next));
+        save.disabled = cancel.disabled = true;
+        if (pendingSaveTimer) { clearTimeout(pendingSaveTimer); pendingSaveTimer = null; }
+        try { await persistSchedule(); await loadSavedData(); await refreshStats(); dialog.close(); }
+        catch { apply(old.name, old.position, old.absences); error.textContent = 'Не вдалося зберегти. Перевірте з’єднання та повторіть.'; save.disabled = cancel.disabled = false; }
+    };
+    dialog.append(form); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove(), { once: true }); dialog.showModal();
+}
+function setupWeekGestures() {
+    let switching = false;
+    async function turn(direction) {
+        if (switching || isShareView || !scheduleLoaded || document.querySelector('dialog[open]')) return;
+        switching = true;
+        try {
+            await window.__timzoFlushChanges();
+            const date = new Date(currentWeekDates[0]); date.setDate(date.getDate() + direction * 7);
+            const utc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            utc.setUTCDate(utc.getUTCDate() + 4 - (utc.getUTCDay() || 7));
+            const year = utc.getUTCFullYear();
+            const week = Math.ceil((((utc - new Date(Date.UTC(year, 0, 1))) / 86400000) + 1) / 7);
+            document.getElementById('week').value = `${year}-W${String(week).padStart(2, '0')}`;
+            updateWeekDates(); syncShareWeekInput();
+            document.getElementById('week-date-fallback').value = formatDateISO(date);
+            await loadSavedData(); await refreshStats();
+        } catch { showBannerMessage('Не вдалося перейти до тижня. Перевірте з’єднання.'); }
+        finally { switching = false; }
+    }
+    document.getElementById('week-prev').onclick = () => turn(-1);
+    document.getElementById('week-next').onclick = () => turn(1);
+    let origin = null;
+    const host = document.getElementById('mobile-planner');
+    host.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1 || e.target.closest('.planner-details')) return;
+        origin = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+    }, { passive: true });
+    host.addEventListener('touchmove', e => {
+        if (!origin || e.touches.length !== 1) return;
+        const dx = e.touches[0].clientX - origin.x, dy = e.touches[0].clientY - origin.y;
+        if (Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) * 1.5) e.preventDefault();
+    }, { passive: false });
+    host.addEventListener('touchcancel', () => origin = null, { passive: true });
+    host.addEventListener('touchend', e => {
+        if (!origin) return;
+        const dx = e.changedTouches[0].clientX - origin.x, dy = e.changedTouches[0].clientY - origin.y;
+        if (Math.abs(dy) > 65 && Math.abs(dy) > Math.abs(dx) * 1.5 && Date.now() - origin.time < 900) turn(dy < 0 ? 1 : -1);
+        origin = null;
+    }, { passive: true });
+}
