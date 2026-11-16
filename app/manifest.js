@@ -2,7 +2,7 @@ export default function manifest() {
   return {
     id: '/', name: 'timzo — графік команди', short_name: 'timzo',
     description: 'Планування змін, облік годин та аналітика команди.',
-    start_url: '/', scope: '/', display: 'standalone',
+    start_url: '/', scope: '/', display: 'fullscreen', display_override: ['fullscreen', 'standalone'],
     background_color: '#eeece9', theme_color: '#eeece9', lang: 'uk',
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },

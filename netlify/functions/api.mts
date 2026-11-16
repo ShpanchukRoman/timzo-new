@@ -29,8 +29,10 @@ async function readSchedule(db: any, workspaceId: string, week: string) {
   return {
     week, dayNotes: schedule?.dayNotes || Array(7).fill(''), limits: DEFAULT_LIMITS.map((fallback: number, index: number) => String(limits.find((l: any) => l.dayIndex === index)?.hours ?? fallback)),
     employees: staff.map((employee: any, index: number) => ({
-      id: employee.id, clientId: employee.clientId, index, name: employee.name, position: employee.position, sortIndex: employee.sortIndex,
+      id: employee.id, clientId: employee.clientId, index, name: employee.name, position: employee.position, sortIndex: employee.sortIndex, absences: employee.absences,
       schedule: Array.from({ length: 7 }, (_, dayIndex) => {
+        const date = entryDate(week, dayIndex)!.toISOString().slice(0, 10);
+        if ((employee.absences || []).some((a: any) => a.start <= date && a.end >= date)) return { primary: '', secondary: '', locked: true };
         const slot = slots.find((s: any) => s.employeeId === employee.id && s.dayIndex === dayIndex);
         return { primary: slot?.primary || '', secondary: slot?.secondary || '', locked: slot?.locked || false };
       })
@@ -45,6 +47,7 @@ function validateSchedule(body: any) {
   const ids = new Set();
   for (const employee of body.employees) {
     if (!employee || typeof employee.name !== 'string' || !employee.name.trim() || employee.name.length > 160 || typeof employee.position !== 'string' || employee.position.length > 160) fail('Перевірте ім’я та посаду працівника.');
+    if (employee.absences !== undefined && (!Array.isArray(employee.absences) || employee.absences.length > 200 || employee.absences.some((a: any) => !a || !['vacation', 'sick', 'unpaid', 'other'].includes(a.type) || !/^\d{4}-\d{2}-\d{2}$/.test(a.start) || !/^\d{4}-\d{2}-\d{2}$/.test(a.end) || !Number.isFinite(Date.parse(a.start)) || !Number.isFinite(Date.parse(a.end)) || new Date(a.start).toISOString().slice(0,10) !== a.start || new Date(a.end).toISOString().slice(0,10) !== a.end || a.start > a.end || a.start < '2000-01-01' || a.end > '2200-12-31' || employee.absences.some((b: any) => b !== a && b.start <= a.end && b.end >= a.start)))) fail('Перевірте дати відсутності: періоди не мають перетинатися.');
     if (employee.id && !uuid(employee.id)) fail('Некоректний працівник.');
     const identity = employee.id || employee.clientId;
     if (typeof identity !== 'string' || identity.length > 160 || ids.has(identity)) fail('Некоректний або повторений працівник.');
@@ -71,7 +74,7 @@ async function saveSchedule(db: any, workspaceId: string, body: any) {
     const result = [];
     const entryRows = [];
     for (const [index, employee] of body.employees.entries()) {
-      const fields = { name: employee.name.trim(), position: employee.position.trim(), sortIndex: index };
+      const fields = { name: employee.name.trim(), position: employee.position.trim(), sortIndex: index, ...(employee.absences !== undefined ? { absences: employee.absences } : {}) };
       let record;
       if (employee.id) {
         [record] = await tx.update(employees).set(fields).where(and(eq(employees.workspaceId, workspaceId), eq(employees.id, employee.id), eq(employees.active, true))).returning();
@@ -92,7 +95,7 @@ async function saveSchedule(db: any, workspaceId: string, body: any) {
 async function statsData(db: any, workspace: any) {
   const staff = await db.select().from(employees).where(and(eq(employees.workspaceId, workspace.id), eq(employees.active, true))).orderBy(asc(employees.sortIndex));
   const rows = await db.select({ week: schedules.week, employeeId: entries.employeeId, dayIndex: entries.dayIndex, primary: entries.primary, secondary: entries.secondary, locked: entries.locked }).from(entries).innerJoin(schedules, eq(schedules.id, entries.scheduleId)).where(eq(schedules.workspaceId, workspace.id));
-  return { staff, rows };
+  return { staff, rows: rows.filter((r: any) => { const date = entryDate(r.week, r.dayIndex)!.toISOString().slice(0,10); return !((staff.find((e: any) => e.id === r.employeeId)?.absences || []) as any[]).some(a => a.start <= date && a.end >= date); }) };
 }
 export default async (req: Request) => {
   const url = new URL(req.url), path = url.pathname;

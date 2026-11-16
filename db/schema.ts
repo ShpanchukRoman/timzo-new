@@ -15,6 +15,7 @@ export const employees = pgTable('employees', {
   position: text('position').notNull().default(''),
   sortIndex: integer('sort_index').notNull().default(0),
   monthlyPlanHours: doublePrecision('monthly_plan_hours').notNull().default(0),
+  absences: jsonb('absences').notNull().default([]),
   active: boolean('active').notNull().default(true),
 }, table => [uniqueIndex('employee_workspace_client').on(table.workspaceId, table.clientId)]);
 export const schedules = pgTable('schedules', {

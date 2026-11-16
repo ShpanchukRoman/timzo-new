@@ -27,18 +27,19 @@ export default function WorkspaceNav() {
   }, []);
   function navigate(event, id) {
     setActive(id);
+    event.currentTarget.closest('details')?.removeAttribute('open');
     document.getElementById('main-content')?.setAttribute('data-mobile-view', id);
-    if (window.matchMedia('(max-width: 767px)').matches) {
+    {
       event.preventDefault();
       const hash = `#${id}-section`;
       if (window.location.hash !== hash) window.history.pushState(null, '', hash);
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
   }
-  return <nav className="workspace-nav" aria-label="Розділи застосунку">
+  return <details className="workspace-menu"><summary aria-label="Меню застосунку">☰</summary><nav className="workspace-nav" aria-label="Розділи застосунку">
     <div className="nav-sections">{sections.map(([id, label, path]) => <a key={id} href={`#${id}-section`} onClick={event => navigate(event, id)} aria-current={active === id ? 'page' : undefined}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg>
       <span>{label}</span>
     </a>)}</div>
-  </nav>;
+  </nav></details>;
 }
